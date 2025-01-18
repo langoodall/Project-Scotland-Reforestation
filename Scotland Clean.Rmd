@@ -1069,63 +1069,79 @@ probabilityRasters <- lapply(seq_along(probabilityMaps), function(i) {
 # Assign names to the processed results
 names(probabilityRasters) <- result_names
 
-
+# Bind all the rows together
 probabilityMapsAll <- bind_rows(probabilityMaps)
 
-
+# Read in shapefile
 Scotland.Shp <- st_read('/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Scotland Shapefile/Scotland_Shapefile/NUTS1_Jan_2018_UGCB_in_the_UK.shp') %>%
   st_transform(crs = crs(templateRaster)) %>%
   filter(nuts118nm == "Scotland") %>%
   st_as_sf()
 
+# Create a bounding box to crop the shapefile too
+bounding_box <- st_bbox(c(
+  xmin = 260000, # Adjust to exclude Orkney/Shetland
+  ymin = 6190000, 
+  xmax = 570000, # Adjust to exclude Orkney/Shetland
+  ymax = 6500000
+), crs = st_crs(Scotland.Shp))
+Scotland_cropped <- st_crop(Scotland.Shp, bounding_box)
 
+# # Plot the cropped shapefile
+# plot(Scotland_cropped$geometry, col = 'gray88')
+# plot(pinewoodShp, add = TRUE, col = NA)
+custom_colors <- c("Birch" = "#42cafe", "Pine" = "#d099ff","Oak" = "#ff5343")
 
+# Create a gradient function for each forest type
+get_gradient_color <- function(prob, start_color, end_color) {
+  scales::col_numeric(palette = colorRampPalette(c(start_color, end_color))(100), 
+                      domain = c(0, 1))(prob)
+}
+
+# Add a new column for gradient color based on the probabilities
+probabilityMapsAll <- probabilityMapsAll %>%
+  mutate(
+    Fill_Color = case_when(
+      Forest_Type == "Birch" ~ get_gradient_color(Birch, "#42cafe", "#b2e9ff"),
+      Forest_Type == "Oak" ~ get_gradient_color(Oak, "#ff5343", "#ffb8b1"),
+      Forest_Type == "Pine" ~ get_gradient_color(Pine, "#d099ff", "#f0d6ff"),
+      TRUE ~ "gray" # Fallback for undefined types
+    )
+  )
+
+probabilityMapsAll <- probabilityMapsAll %>%
+  mutate(
+    Scenario = case_when(
+      Scenario == 1 ~ "Most",
+      Scenario == 2 ~ "High",
+      Scenario == 3 ~ "Moderate",
+      Scenario == 4 ~ "Least"
+    ),
+    Scenario = factor(Scenario, levels = c("Most", "High", "Moderate", "Least")), # Set the desired order
+    Model = case_when(
+      Model == "ANN" ~ "MLP",
+      Model == "RF" ~ "Random Forest",
+      Model == "XGB" ~ "XGBoost"
+    )
+  )
+
+# Updated ggplot code
 ggplot(probabilityMapsAll) +
-  geom_raster(aes(x = x, y = y, fill = Forest_Type)) +
-  scale_fill_viridis_d() +
-  theme_minimal() +
-  facet_grid(Model ~ Scenario)
-  # geom_sf(data = Scotland.Shp, fill = NA, color = "black", size = 0.5)
-
-
-
-# highProbabilityMapsAll <- probabilityMapsAll %>%
-#   filter(Birch >= 0.8 | Oak >= 0.8 | Pine >= 0.8)
-
-
-
-ggplot(highProbabilityMapsAll) +
-  geom_raster(aes(x = x, y = y, fill = Forest_Type)) +
-  scale_fill_viridis_d() +
-  theme_minimal() +
+  geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray90", 0.1)) +
+  geom_raster(aes(x = x, y = y, fill = Fill_Color)) +
+  geom_sf(data = pinewoodShp, col = "black", fill = NA) +
+  scale_fill_identity() + # Use identity scale since colors are already calculated
+  theme_bw() +
+  xlab("Longitude") +
+  ylab("Latitude") +
   facet_grid(Model ~ Scenario)
 
 
-probabilityMapsAll %>%
-  filter(Scenario == 4)  %>%
-  mutate(Birch_High = as.numeric(Birch > 0.8),
-         Oak_High = as.numeric(Oak > 0.8),
-         Pine_High = as.numeric(Pine > 0.8),
-         High_Prob_Types = paste(ifelse(Birch_High, "Birch", ""),
-                                 ifelse(Oak_High, "Oak", ""),
-                                 ifelse(Pine_High, "Pine", ""), sep = ", ") %>%
-           gsub(", ,", ",", .) %>%
-           trimws() %>%
-           gsub("^,|,$", "", .)), High_Prob_Count = rowSums(select(., Birch_High, Oak_High, Pine_High)))
+```
 
-
-probabilityMapsAll %>%
-  filter(Scenario == 4)  %>%
-  mutate(Birch_High = as.numeric(Birch > 0.8),
-         Oak_High = as.numeric(Oak > 0.8),
-         Pine_High = as.numeric(Pine > 0.8),
-         High_Prob_Types = paste(ifelse(Birch_High, "Birch", ""),
-                                 ifelse(Oak_High, "Oak", ""),
-                                 ifelse(Pine_High, "Pine", ""), sep = ", ") %>%
-           gsub(", ,", ",", .) %>%
-           trimws() %>%
-           gsub("^,|,$", "", .)) %>%
-  filter(High_Prob_Types != "")
+# Get only the cells that had a high prediction of cover type
+highProbabilityMapsAll <- probabilityMapsAll %>%
+  filter(Birch >= 0.8 | Oak >= 0.8 | Pine >= 0.8)
 
 
 probabilityMapScenario4All <- probabilityMapsAll %>%
@@ -1148,21 +1164,55 @@ probabilityMapScenario4All <- probabilityMapsAll %>%
   mutate(Category = paste0(Forest_Type, Max_High))
 
 custom_colors <- c(
-  "Birch1" = "#1b9e77", "Birch2" = "#d95f02", "Birch3" = "#7570b3",
-  "Oak1" = "#dddf00", "Oak2" = "#80b918", "Oak3" = "#007f5f",
-  "Pine3" = "#f8961e", "Pine2" = "#f3722c", "Pine2" = "#9c6644"
+  "Birch1" = "#b2e9ff", "Birch2" = "#86ddfe", "Birch3" = "#42cafe",
+  "Pine1" = "#f0d6ff", "Pine2" = "#e0b3ff", "Pine3" = "#d099ff",
+  "Oak1" = "#ffb8b1", "Oak2" = "#ff9085", "Oak3" = "#ff5343"
 )
 
 
 ggplot(probabilityMapScenario4All) +
+  geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray99", 0.75)) +
   geom_raster(aes(x = x, y = y, fill = Category)) +
+  geom_sf(data = pinewoodShp, col = "black", fill = NA) +
   scale_fill_manual(values = custom_colors) +
-  theme_minimal()
+  theme_light()
 
 ggplot(probabilityMapScenario4All %>% filter(Max_High > 2)) +
+  geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray90", 0.1)) +
   geom_raster(aes(x = x, y = y, fill = Category)) +
-  scale_fill_manual(values = custom_colors) +
-  theme_minimal()
+  geom_sf(data = pinewoodShp, col = "black", fill = NA) +
+  scale_fill_manual(values = custom_colors,
+                    labels = c("Birch", "Oak", "Pine"),
+                    name = "Forest Cover Type") +
+  theme_light()
+
+
+
+
+
+```
+
+ggplot(probabilityMapScenario4All) +
+  geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray99", 0.75)) +
+  geom_raster(aes(x = x, y = y, fill = Category)) +
+  geom_sf(data = pinewoodShp, col = "black", fill = NA) +
+  scale_fill_manual(
+    values = custom_colors,
+    guide = guide_legend(
+      nrow = 3,                # Arrange in 3 rows
+      ncol = 3,                # Arrange in 3 columns
+      label = FALSE,           # Remove labels
+      title = NULL             # Remove title
+    )
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "bottom",       # Position legend below the plot
+    legend.key.size = unit(1, "cm"),  # Adjust size of squares
+    legend.text = element_blank(),   # Ensure no labels
+    legend.title = element_blank()   # Ensure no title
+  )
+```
 
 
 
@@ -1182,7 +1232,31 @@ probabilityMapScenario4All %>%
 
 
 
-probabilityMapScenario4All %>%
+
+Scotland.Shp <- st_read('/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Scotland Shapefile/Scotland_Shapefile/NUTS1_Jan_2018_UGCB_in_the_UK.shp') %>%
+  st_transform(crs = crs(templateRaster)) %>%
+  filter(nuts118nm == "Scotland") %>%
+  st_as_sf()
+
+# Define the bounding box (xmin, ymin, xmax, ymax) in EPSG:32630
+bounding_box <- st_bbox(c(
+  xmin = 260000, # Adjust to exclude Orkney/Shetland
+  ymin = 6190000, 
+  xmax = 570000, # Adjust to exclude Orkney/Shetland
+  ymax = 6500000
+), crs = st_crs(Scotland.Shp))
+
+# Crop the Scotland shapefile
+Scotland_cropped <- st_crop(Scotland.Shp, bounding_box)
+
+# Plot the original shapefile and the cropped extent
+plot(Scotland.Shp$geometry, col = 'lightblue', main = "Scotland with Bounding Box")
+plot(st_as_sfc(bounding_box), add = TRUE, border = 'red', lwd = 2)
+
+# Plot the cropped shapefile
+plot(Scotland_cropped$geometry, col = 'gray88', main = "Cropped Scotland (No Orkney/Shetland)")
+plot(pinewoodShp, add = TRUE, col = NA)
+plot()
 ```
 
 
