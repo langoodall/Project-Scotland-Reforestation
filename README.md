@@ -1,5 +1,5 @@
 # Scotland-Reforestation
-Project focused on using machine learning to predict potential areas of reforestation under different planting scenarios.
+The landscape of Scotland that we are all familar with today is a stark contrast to the landscape that was present for the millenia preceeding the 18th century (Hobbs, 2009). Prior to the 18th century the Scottish Highlands was home to large swathes of forest including oaks, aspens, rowans, junipers, birch and most iconically of all, the Scots pine. Now, after centuries of deforestation and a boom in deer populations, the extensive forests of the Highlands have been switched out for abundant heather and grass species, with the Caledonian pine forest now only exisitng in fragmented, remnant patches.
 
 <img src="https://github.com/user-attachments/assets/4d98412e-ec52-4ca3-9f32-39e1c10b2097" alt="Image" width="600">
 
