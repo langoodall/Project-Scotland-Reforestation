@@ -26,6 +26,7 @@ library(landscapemetrics)
 library(patchwork)
 options(scipen = 999)
 options(digits = 7)
+templateRaster <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/scotlandDEM100m.tif")
 ```
 
 
@@ -1137,13 +1138,6 @@ ggplot(probabilityMapsAll) +
   facet_grid(Model ~ Scenario)
 
 
-```
-
-# Get only the cells that had a high prediction of cover type
-highProbabilityMapsAll <- probabilityMapsAll %>%
-  filter(Birch >= 0.8 | Oak >= 0.8 | Pine >= 0.8)
-
-
 probabilityMapScenario4All <- probabilityMapsAll %>%
   filter(Scenario == 4) %>%
   mutate(Birch_High = ifelse(Birch >= 0.8, 1, 0),
@@ -1188,30 +1182,89 @@ ggplot(probabilityMapScenario4All %>% filter(Max_High > 2)) +
 
 
 
+highProbabilityRast <- probabilityMapScenario4All %>%
+  filter(Max_High > 2) %>%
+  select(x,y,Forest_Type) %>%
+  as_spatraster(., crs = "epsg:32630") %>%
+  project(., templateRaster)
 
 
-```
+highProbabilityStack <- c(highProbabilityRast,aspect,continentalRast,rainfallRast,scotlandDEM,slope,soilDrainRast,sunRast,tempMinRast,tempMaxRast)
 
-ggplot(probabilityMapScenario4All) +
-  geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray99", 0.75)) +
+highProbabilityStackDf <- as.data.frame(highProbabilityStack, xy = TRUE) %>%
+  drop_na() %>%
+  `colnames<-`(c("x", "y", "Forest_Type", "Aspect", "Continental", "Rainfall", "Elevation", "Slope", "SoilDrainage", "Sunlight", "TempMin", "TempMax"))
+
+
+
+highProbabilityStackDf[,-c(1,2)] %>%
+  pivot_longer(cols = c("Aspect":"TempMax"), values_to = "value")
+
+
+x <- highProbabilityStackDf[, -c(1, 2)] %>%
+  mutate(across(Aspect:TempMax, as.numeric)) %>%
+  pivot_longer(cols = Aspect:TempMax, values_to = "value")
+
+ggplot(x, aes(x = Forest_Type, y = value, fill = Forest_Type)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_wrap(~name, scales = "free_y")
+
+ggplot(probabilityMapScenario4All %>% filter(Max_High > 2)) +
+  geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray90", 0.1)) +
   geom_raster(aes(x = x, y = y, fill = Category)) +
   geom_sf(data = pinewoodShp, col = "black", fill = NA) +
-  scale_fill_manual(
-    values = custom_colors,
-    guide = guide_legend(
-      nrow = 3,                # Arrange in 3 rows
-      ncol = 3,                # Arrange in 3 columns
-      label = FALSE,           # Remove labels
-      title = NULL             # Remove title
-    )
-  ) +
-  theme_light() +
-  theme(
-    legend.position = "bottom",       # Position legend below the plot
-    legend.key.size = unit(1, "cm"),  # Adjust size of squares
-    legend.text = element_blank(),   # Ensure no labels
-    legend.title = element_blank()   # Ensure no title
-  )
+  scale_fill_manual(values = custom_colors,
+                    labels = c("Birch", "Oak", "Pine"),
+                    name = "Forest Cover Type") +
+  theme_light()
+
+
+x %>%
+  filter(name == "Continental") %>%
+  group_by(Forest_Type) %>%
+  summarise(median = median(value),
+            mean = mean(value),
+            sd = sd(value))
+
+aov.1 <- aov(value ~ Forest_Type, data = x %>% filter(name == "Continental"))
+summary(aov.1)
+TukeyHSD(aov.1)
+
+
+
+
+12 - 5
+35 - -40
+```
+
+
+
+aspect <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/aspect.tif")
+continentalRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/continentalRaster.tif")
+pineRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/pinewoodRaster.tif")
+rainfallRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/rainfallRaster.tif")
+scotlandDEM <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/scotlandDEM100m.tif")
+slope <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/slope.tif")
+soilDrainRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/soilDrainage.tif")
+sunRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/sunRaster.tif")
+tempMinRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/tempMinRaster.tif")
+tempMaxRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/tempMaxRaster.tif")
+
+plot(continentalRast)
+
+inner_join(scotlandDEM %>% as.data.frame(xy = TRUE),
+probabilityMapScenario4All %>% filter(Max_High > 2), by = c("x", "y")) %>%
+  ggplot(., aes(x = Forest_Type, y = scotland30mDEM, fill = Forest_Type)) +
+  geom_boxplot() +
+  theme_classic()
+
+inner_join(continentalDf,
+           probabilityMapScenario4All %>% filter(Max_High > 2), by = c("x", "y"))
+
+
+plot()
+
 ```
 
 
@@ -1258,7 +1311,6 @@ plot(Scotland_cropped$geometry, col = 'gray88', main = "Cropped Scotland (No Ork
 plot(pinewoodShp, add = TRUE, col = NA)
 plot()
 ```
-
 
 
 
