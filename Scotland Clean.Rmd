@@ -5,6 +5,23 @@ date: "2024-12-16"
 output: pdf_document
 ---
 
+```{r}
+x <- readxl::read_xlsx("~/Downloads/nsf24321-tab001.xlsx") %>%
+  `colnames<-`(c("FiscalYear", "Total", "Total_RD", "TotalResearch", "BasicResearch", "AppliedResearch", "Development", "RDPlant"))
+
+x <- x %>%
+  pivot_longer(cols = c("BasicResearch", "AppliedResearch"), names_to = "Variable", values_to = "Value")
+
+
+ggplot(x, aes(x = FiscalYear, y = Value, col = Variable, group = Variable)) +
+  geom_line() +
+  theme_classic()
+```
+
+
+
+
+
 ```{r, message = FALSE, warning = FALSE}
 library(tidyverse)
 library(terra)
@@ -751,12 +768,22 @@ scaleData <- scaleData[,c(9,1:8)]
 # Looking at the PCA values
 factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 1)
 factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 2)
+factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 3)
+factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 4)
+factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 5)
+factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 6)
+factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 7)
+factoextra::fviz_cos2(pcaOutput, choice = "var", axes = 8)
 summary(pcaOutput)
 
 names(scaleData) <- c("Tree_Type", "Total_Rainfall", "Max_Temp", "Total_Sunlight_Hours", "Continentality_Index", "Aspect", "Slope", "Soil_Drainage", "Elevation")
 
 write_csv(scaleData, "/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Storage Data Frames/scaleData4.csv")
+```
 
+
+
+```{r}
 # #############################################
 # # CHECK THIS LATER ON, IT MAY NOT BE NEEDED #
 # #############################################
@@ -912,7 +939,32 @@ allScenariosDf %>%
                                "Moderate restrictions" = "#88d4ab",
                                "Least Restrictions" = "#99e2b4"))
 
+allScenariosDf %>%
+  group_by(Scenario, Model) %>%
+  summarise(n = n())
 
+# Proportions
+
+allScenariosDf %>%
+  group_by(Scenario, Model, Predicted_Class) %>%
+  summarise(n = n()) %>%
+  mutate(total = sum(n),
+         prop = n / total) %>%
+  ggplot(., aes(x = Model, y = prop, col = Predicted_Class, fill = Predicted_Class)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  facet_wrap(~Scenario)
+
+allScenariosDf %>%
+  group_by(Scenario, Model, Predicted_Class) %>%
+  summarise(n = n()) %>%
+  mutate(total = sum(n),
+         prop = round(n / total, 3)) %>%
+  arrange(Scenario)
+
+allScenariosDf %>%
+  group_by(Scenario, Model) %>%
+  summarise(n = n())
 ```
 
 
@@ -983,10 +1035,10 @@ for (file_path in tif_files) {
 # Create a list of rasters and give them the appropriate names
 rasterList <- list(rfScenario1Rast,rfScenario2Rast,rfScenario3Rast,rfScenario4Rast,xgbScenario1Rast,xgbScenario2Rast,xgbScenario3Rast,xgbScenario4Rast,annScenario1Rast,annScenario2Rast,annScenario3Rast,annScenario4Rast)
 
-rasterNames <- c("RF Scenario Most", "RF Scenario High", "RF Scenario Moderate", "RF Scenario Least", "XGB Scenario Most", "XGB Scenario High", "XGB Scenario Moderate", "XGB Scenario Least", "ANN Scenario Most", "ANN Scenario High", "ANN Scenario Moderate", "ANN Scenario Least")
+rasterNames <- c("RF Scenario Most", "RF Scenario High", "RF Scenario Moderate", "RF Scenario Least", "XGB Scenario Most", "XGB Scenario High", "XGB Scenario Moderate", "XGB Scenario Least", "MLP Scenario Most", "MLP Scenario High", "MLP Scenario Moderate", "MLP Scenario Least")
 
 # For loop to plot the rasters
-colors <- c("#38a3a5", "#ffba08", "#C75C5A")
+colors <- c("#42cafe","#ff5343","#d099ff")
 for (i in 1:length(rasterList)) {
   names(rasterList)[i] <- rasterNames[i]  # Name each raster
   plot(rasterList[[i]], main = rasterNames[i], col = colors)  # Plot the raster with its name as the title
@@ -994,14 +1046,14 @@ for (i in 1:length(rasterList)) {
 }
 
 # Create a pdf image of all the raster together and then export them
-# pdf("rasters_plot.pdf", width = 14, height = 10)
-# par(mfrow = c(3, 4))
-# for (i in 1:length(rasterList)) {
-#   names(rasterList)[i] <- rasterNames[i]
-#   plot(rasterList[[i]], main = rasterNames[i], col = colors)
-#   plot(st_geometry(pinewoodShp[2]), add = TRUE, border = "black", lwd = 2, col = NA)  
-# }
-# dev.off()
+pdf("rasters_plot.pdf", width = 14, height = 10)
+par(mfrow = c(3, 4))
+for (i in 1:length(rasterList)) {
+  names(rasterList)[i] <- rasterNames[i]
+  plot(rasterList[[i]], main = rasterNames[i], col = colors)
+  plot(st_geometry(pinewoodShp[2]), add = TRUE, border = "black", lwd = 2, col = NA)
+}
+dev.off()
 
 
 
@@ -1020,13 +1072,59 @@ raster_dfs <- map2(rasterList, rasterNames, raster_to_df)
 
 # Combine all data frames into one
 combined_df <- bind_rows(raster_dfs)
+combined_df$raster_name <- factor(combined_df$raster_name, levels = c(
+  "RF Scenario Most", "RF Scenario High", "RF Scenario Moderate", "RF Scenario Least",
+  "XGB Scenario Most", "XGB Scenario High", "XGB Scenario Moderate", "XGB Scenario Least",
+  "MLP Scenario Most", "MLP Scenario High", "MLP Scenario Moderate", "MLP Scenario Least"
+))
 
 ggplot(combined_df, aes(x = x, y = y, fill = value)) +
   geom_raster() +
-  scale_fill_viridis_d() +
+  scale_fill_manual(values = c("Birch" = "#42cafe", "Scots Pine" = "#d099ff", "Oak" = "#ff5343")) +
   facet_wrap(~ raster_name) +
   theme_minimal() +
   labs(title = "Raster Plots", fill = "Value", x = "Longitude", y = "Latitude")
+
+
+allScenariosDf[, -c(1, 2)] %>%
+  mutate(across(Total_Rainfall:Elevation, as.numeric)) %>%
+  pivot_longer(cols = Total_Rainfall:Elevation, values_to = "value") %>%
+  filter(Scenario == 1, Model == "RF", name != "Aspect") %>%
+  ggplot(., aes(x = Predicted_Class, y = value, fill = Predicted_Class)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_wrap(~name, scales = "free_y", ncol = 4)
+
+allScenariosDf[, -c(1, 2)] %>%
+  mutate(across(Total_Rainfall:Elevation, as.numeric)) %>%
+  pivot_longer(cols = Total_Rainfall:Elevation, values_to = "value") %>%
+  filter(Scenario == 1, Model == "ANN", name != "Aspect") %>%
+  ggplot(., aes(x = Predicted_Class, y = value, fill = Predicted_Class)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_wrap(~name, scales = "free_y", ncol = 4)
+
+allScenariosDf[, -c(1, 2)] %>%
+  mutate(across(Total_Rainfall:Elevation, as.numeric)) %>%
+  pivot_longer(cols = Total_Rainfall:Elevation, values_to = "value") %>%
+  filter(Scenario == 1, Model == "XGB", name != "Aspect") %>%
+  ggplot(., aes(x = Predicted_Class, y = value, fill = Predicted_Class)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_wrap(~name, scales = "free_y", ncol = 4)
+
+
+
+allScenariosDf[, -c(1, 2)] %>%
+  mutate(across(Total_Rainfall:Elevation, as.numeric)) %>%
+  pivot_longer(cols = Total_Rainfall:Elevation, values_to = "value") %>%
+  filter(name != "Aspect") %>%
+  ggplot(., aes(x = Predicted_Class, y = value)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_wrap(Scenario~name, scales = "free_y")
+  
+  
 ```
 
 # Probability Maps
@@ -1058,7 +1156,6 @@ for (model in models) {
     probabilityMaps[[paste0(model, scenario)]] <- result
   }
 }
-
 
 
 # Create rasters out of the dataframes
@@ -1205,10 +1302,26 @@ x <- highProbabilityStackDf[, -c(1, 2)] %>%
   mutate(across(Aspect:TempMax, as.numeric)) %>%
   pivot_longer(cols = Aspect:TempMax, values_to = "value")
 
-ggplot(x, aes(x = Forest_Type, y = value, fill = Forest_Type)) +
+x %>%
+  filter(name == "Aspect", Forest_Type == "Oak") %>%
+  mutate(value = as.factor(ifelse(value == 9, 1, value))) %>%
+  ggplot(., aes(x = value, fill = Forest_Type)) +
+  geom_bar() +
+  theme_classic() +
+  scale_x_discrete(name = "Aspect", labels = c("S","SW","W","NW"))
+
+x %>%
+  filter(name == "Aspect", Forest_Type != "Oak") %>%
+  mutate(value = as.factor(ifelse(value == 9, 1, value))) %>%
+  ggplot(., aes(x = value, fill = Forest_Type)) +
+  geom_bar(position = "dodge") +
+  theme_classic() +
+  scale_x_discrete(name = "Aspect", labels = c("N","NE","E","SE","S","SW","W","NW"))
+
+ggplot(x %>% filter(name != "Aspect"), aes(x = Forest_Type, y = value, fill = Forest_Type)) +
   geom_boxplot() +
   theme_classic() +
-  facet_wrap(~name, scales = "free_y")
+  facet_wrap(~name, scales = "free_y", ncol = 4)
 
 ggplot(probabilityMapScenario4All %>% filter(Max_High > 2)) +
   geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray90", 0.1)) +
@@ -1218,6 +1331,12 @@ ggplot(probabilityMapScenario4All %>% filter(Max_High > 2)) +
                     labels = c("Birch", "Oak", "Pine"),
                     name = "Forest Cover Type") +
   theme_light()
+
+
+
+
+probabilityMapScenario4All %>%
+  filter(Category == "Oak3" | Category == "Pine3" | Category == "Birch3")
 
 
 x %>%
@@ -1231,12 +1350,6 @@ aov.1 <- aov(value ~ Forest_Type, data = x %>% filter(name == "Continental"))
 summary(aov.1)
 TukeyHSD(aov.1)
 
-
-
-
-12 - 5
-35 - -40
-```
 
 
 
