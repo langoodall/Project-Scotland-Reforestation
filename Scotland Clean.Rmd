@@ -5,22 +5,6 @@ date: "2024-12-16"
 output: pdf_document
 ---
 
-```{r}
-x <- readxl::read_xlsx("~/Downloads/nsf24321-tab001.xlsx") %>%
-  `colnames<-`(c("FiscalYear", "Total", "Total_RD", "TotalResearch", "BasicResearch", "AppliedResearch", "Development", "RDPlant"))
-
-x <- x %>%
-  pivot_longer(cols = c("BasicResearch", "AppliedResearch"), names_to = "Variable", values_to = "Value")
-
-
-ggplot(x, aes(x = FiscalYear, y = Value, col = Variable, group = Variable)) +
-  geom_line() +
-  theme_classic()
-```
-
-
-
-
 
 ```{r, message = FALSE, warning = FALSE}
 library(tidyverse)
@@ -1376,9 +1360,6 @@ inner_join(continentalDf,
            probabilityMapScenario4All %>% filter(Max_High > 2), by = c("x", "y"))
 
 
-plot()
-
-```
 
 
 
@@ -1422,7 +1403,7 @@ plot(st_as_sfc(bounding_box), add = TRUE, border = 'red', lwd = 2)
 # Plot the cropped shapefile
 plot(Scotland_cropped$geometry, col = 'gray88', main = "Cropped Scotland (No Orkney/Shetland)")
 plot(pinewoodShp, add = TRUE, col = NA)
-plot()
+
 ```
 
 
