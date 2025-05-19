@@ -1,0 +1,367 @@
+---
+title: "Scotland Reforestation Dashboard"
+author: "Louis Goodall"
+date: "2025-05-12"
+output: pdf_document
+---
+
+```{r, message = FALSE, warning = FALSE}
+library(shiny)
+library(bs4Dash)
+library(tidyverse)
+library(plotly)
+library(leaflet)
+library(ellipse)
+library(DT)
+library(tidyterra)
+library(terra)
+
+restrictiveScenario1Df <- restrictiveScenario1Df %>% mutate(Name = "Least")
+restrictiveScenario2Df <- restrictiveScenario2Df %>% mutate(Name = "Moderate")
+restrictiveScenario3Df <- restrictiveScenario3Df %>% mutate(Name = "High")
+restrictiveScenario4Df <- restrictiveScenario4Df %>% mutate(Name = "Most")
+
+allScenariosDf <- rbind(restrictiveScenario1Df,restrictiveScenario2Df,restrictiveScenario3Df,restrictiveScenario4Df)
+```
+
+
+
+```{r}
+# Info boxes
+numberOfSites <- allScenariosDf %>%
+  group_by(Name) %>%
+  summarise(count = n()) %>%
+  filter(Name == "Most") %>%
+  select(count)
+siteDf <- allScenariosDf %>%
+  group_by(Name) %>%
+  summarise(Continentality = mean(Continentality_Index),
+            Elevation = mean(Elevation),
+            MaxTemp = mean(Max_Temp),
+            Slope = mean(Slope),
+            Rainfall = mean(Total_Rainfall),
+            Sunlight = mean(Total_Sunlight_Hours),
+            Soil = mean(Soil_Moisture))
+
+finishedDf <- finishedDf %>% mutate(GroupName = paste0(Model, " ", Name))
+finishedDf$Predicted_Class <- as.factor(finishedDf$Predicted_Class)
+rownames(finishedDf) <- NULL
+
+rasterList <- list()
+for (group in unique(finishedDf$GroupName)) {
+  x <- finishedDf %>% filter(GroupName == group) %>% select(x, y, Predicted_Class)
+  r <- as_spatraster(x, crs = "epsg:32630")
+  rasterList[[group]] <- r
+}
+
+hotspotRast <- highProbabilityDf[,-c(4:8)] %>%
+  as_spatraster(., crs = "epsg:32630")
+
+rasterList[["Hotspots"]] <- hotspotRast
+
+
+
+rasterList <- lapply(rasterList, function(r) {
+  rast <- ifel(r == 1, 3,
+               ifel(r == 3, 1,
+                    r))
+  return(rast)
+})
+
+
+allFeatureDf <- finishedDf[,-c(3,5)] %>%
+  inner_join(allScenariosDf, by = c("x", "y", "Name")) %>%
+  pivot_longer(cols = Aspect:Elevation, values_to = "value", names_to = "Variable")
+
+allFeatureDf <- rbind(allFeatureDf[,-c(4,5)],
+      highProbabilityDf[,-c(4:8)] %>%
+        inner_join(allScenariosDf, by = c("x", "y")) %>%
+        select(-Name) %>%
+        unique() %>%
+        mutate(GroupName = "Hotspots") %>%
+        pivot_longer(cols = Aspect:Elevation, values_to = "value", names_to = "Variable") %>%
+        rename("Predicted_Class" = "forestType")) %>%
+        rename("Scenario" = "GroupName")
+
+filepath <- '/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Outputs'
+folders <- c("Multilayer Perceptron", "Naive Bayes", "Random Forest", "Support Vector Machine", "XGBoost")
+models <- c("MLP", "NB", "RF", "SVM", "XGB")
+aucrocDf <- list()
+for (i in 1:length(folders)) {
+  directory <- file.path(filepath, folders[i])
+  model <- models[i]
+  filePath <- file.path(directory, paste0("auc_roc_results_", model, ".csv"))
+  data <- data.table::fread(filePath)
+  data <- data %>%
+    mutate(`Forest Type` = case_when(
+      Class == 0 ~ "Birch",
+      Class == 1 ~ "Oak",
+      TRUE ~ "Scots pine"
+    ))
+  data$Model <- model
+  aucrocDf[[folders[i]]] <- data
+}
+aucrocDf <- do.call(rbind, aucrocDf)
+aucrocDf <- aucrocDf %>% mutate(AUC = round(AUC, 3)) %>% select(-Class, `Forest Type`, AUC, Model)
+
+# PCA Data
+pcaTable <- finalTable %>% select(-x, -y)
+pcaTable$Aspect <- as.numeric(as.factor(pcaTable$Aspect))
+pcaTable$ForestType <- as.numeric(as.factor(pcaTable$ForestType))
+pcaTable <- pcaTable %>% mutate(across(everything(), ~ ifelse(is.na(.), median(., na.rm = TRUE), .)))
+
+# Calculate PCA eigenvalues and the centroids of each group
+pcaOutput <- prcomp(as.matrix(pcaTable[,-1]), scale = TRUE, center = TRUE)
+pcaDf <- as.data.frame(pcaOutput$x)
+pcaDf$groups <- finalTable$ForestType
+centroids <- aggregate(cbind(PC1,PC2) ~ groups, pcaDf, mean)
+
+# Calculate 95% confidence ellipsoids so we can plot these polygons over ggplot
+conf.rgn  <- do.call(rbind, lapply(unique(pcaDf$groups), function(t)
+  data.frame(groups = as.character(t),
+             ellipse(cov(pcaDf[pcaDf$groups == t, 1:2]),
+                   centre = as.matrix(centroids[centroids$groups == t, 2:3]),
+                   level = 0.95),
+             stringsAsFactors = FALSE)))
+
+```
+
+
+```{r}
+# ---- Predefined species palette ----
+species_colors <- c("Scots pine" = "#994db3", "Oak" = "#b32417", "Birch" = "#008bb3")
+pal <- colorFactor(palette = species_colors, domain = c(1, 2, 3), na.color = "transparent")
+species_labels <- c("1" = "Scots Pine", "2" = "Oak", "3" = "Birch")
+
+# ---- Aspect & Facet labels ----
+aspect_labels <- c("1" = "N", "2" = "NE", "3" = "E", "4" = "SE", "5" = "S", "6" = "SW", "7" = "W", "8" = "NW")
+facet_labels <- c("Elevation" = "Elevation (m)", "Slope" = "Slope (º)", "Aspect" = "Aspect", "Min_Temp" = "Min Temp (ºC)", "Max_Temp" = "Max Temp (ºC)", "Continentality_Index" = "Continentality Index", "Soil_Moisture" = "Soil Moisture (m3 frac)", "Total_Rainfall" = "Total Rainfall (mm)", "Total_Sunlight_Hours" = "Total Sunlight (h)")
+
+# ---- UI ----
+ui <- dashboardPage(
+  dashboardHeader(
+    title = dashboardBrand(title = "Scotland Reforestation"),
+    rightUi = dropdownMenu(
+      badgeStatus = "info", type = "notifications",
+      notificationItem(text = "Success", status = "success", icon = icon("circle-check")),
+      notificationItem(text = "Warning", status = "warning", icon = icon("circle-exclamation")),
+      notificationItem(text = "Error", status = "danger", icon = icon("circle-xmark"))
+    )
+  ),
+  
+  dashboardSidebar(
+    sidebarMenu(id = "sidebarMenuid",
+      menuItem("Home", tabName = "home", icon = icon("home")),
+      menuItem("Dashboard", tabName = "dashboard", icon = icon("bar-chart"))
+    )
+  ),
+  
+  dashboardBody(
+    tabItems(
+      # ---- Home Tab ----
+      tabItem(
+        tabName = "home",
+        fluidRow(
+          box(
+            title = "Scotland Reforestation",
+            width = 12,
+            status = "info",
+            solidHeader = TRUE,
+            "Scenario-based machine learning project identifying over 1 million hectares of reforestation land in the Scottish Highlands."
+          )
+        ),
+        fluidRow(
+          userBox(
+            collapsible = FALSE,
+            title = userDescription(
+              title = "Louis Goodall",
+              subtitle = "Geospatial Data Scientist",
+              image = NULL,
+              # image = "https://raw.githubusercontent.com/langoodall/File-Dump/main/Images/IMG_1209.jpeg",
+              type = 1
+            ),
+            status = "lime",
+            "PhD candidate in the Center for Geospatial Analytics at North Carolina State University"
+          )
+          # box(
+          #   title = "", width = 6, collapsible = FALSE,
+          #   blockQuote("Between every two pine trees there is a door leading to a new way of life - John Muir", color = "lime")
+          # )
+        )
+      ),
+      
+      # ---- Dashboard Tab ----
+      tabItem(
+        tabName = "dashboard",
+        
+        # Info Box row
+        fluidRow(
+          column(
+            width = 4,
+            infoBox(
+              width = 12,
+              title = "Maximum Potential Sites",
+              value = "1,014,396 ha",
+              icon = icon("globe"),
+              color = "primary"
+            )
+          ),
+          column(
+            width = 4,
+            infoBox(
+              width = 12,
+              title = "Best Performing Model",
+              value = "XGBoost",
+              icon = icon("circle-check"),
+              color = "primary"
+            )
+          ),
+          column(
+            width = 4,
+            infoBox(
+              width = 12,
+              title = "Scots Pine Hotspots",
+              value = "55,042 ha",
+              icon = icon("leaf"),
+              color = "primary"
+            )
+          )
+        ),
+        
+        # Scenario selector
+        fluidRow(
+          column(
+            width = 12,
+            selectInput("scenario", "Choose a scenario:",
+                        choices = names(rasterList),
+                        selected = names(rasterList)[1])
+          )
+        ),
+        
+        # Map and Plot side-by-side
+        fluidRow(
+          column(
+            width = 6,
+            leafletOutput("rasterMap", height = "400px")
+          ),
+          column(
+            width = 6,
+            plotOutput("Plot", height = "400px")
+          )
+        ),
+        
+        # AUC-ROC Table and PCA Plot side-by-side
+        fluidRow(
+          column(
+            width = 6,
+            box(
+              title = "AUC-ROC Table",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              DTOutput("aucrocTable")
+            )
+          ),
+          column(
+            width = 6,
+            box(
+              title = "PCA of Site Clusters",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              plotOutput("pcaPlot", height = "400px")
+            )
+          )
+        )
+      )
+    )
+  )
+)
+
+# ---- Server ----
+server <- function(input, output, session) {
+  
+  # ---- Leaflet Map ----
+  output$rasterMap <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      addRasterImage(rasterList[[input$scenario]], colors = pal, opacity = 0.8, layerId = "raster") %>%
+      addLegend(
+        pal = pal,
+        values = c(1, 2, 3),
+        title = input$scenario,
+        labFormat = function(type, cuts, p) species_labels[as.character(cuts)]
+      )
+  })
+  
+  observeEvent(input$scenario, {
+    r <- rasterList[[input$scenario]]
+    req(r)
+    
+    leafletProxy("rasterMap") %>%
+      clearImages() %>%
+      clearControls() %>%
+      addRasterImage(r, colors = pal, opacity = 0.8, layerId = "raster") %>%
+      addLegend(
+        pal = pal,
+        values = c(1, 2, 3),
+        title = input$scenario,
+        labFormat = function(type, cuts, p) species_labels[as.character(cuts)]
+      )
+  })
+  
+  # ---- ggplot Output ----
+  output$Plot <- renderPlot({
+    req(input$scenario)
+    
+    if (!"Scenario" %in% names(allFeatureDf)) {
+      showNotification("Missing column 'Scenario' in data.", type = "error")
+      return(NULL)
+    }
+    
+    filtered_data <- allFeatureDf %>% filter(Scenario == input$scenario)
+    
+    if (nrow(filtered_data) == 0) {
+      showNotification("No matching data for this scenario.", type = "warning")
+      return(NULL)
+    }
+    
+    ggplot(filtered_data, aes(fill = Predicted_Class)) +
+      geom_boxplot(data = filtered_data %>% filter(Variable != "Aspect"),
+                   aes(x = Predicted_Class, y = as.numeric(value))) +
+      geom_bar(data = filtered_data %>% filter(Variable == "Aspect"),
+               aes(x = as.factor(value), group = Predicted_Class), stat = "count", position = "dodge") +
+      scale_x_discrete(labels = aspect_labels) +
+      theme_classic() +
+      facet_wrap(~ Variable, scales = "free", labeller = labeller(Variable = facet_labels)) +
+      scale_fill_manual(values = species_colors, name = "Forest Community Type") +
+      xlab("") + ylab("")
+  })
+  
+  # ---- AUC-ROC Table ----
+  output$aucrocTable <- renderDT({
+    datatable(aucrocDf, options = list(pageLength = 5, autoWidth = TRUE), rownames = FALSE)
+  })
+  
+  # ---- PCA Plot ----
+  output$pcaPlot <- renderPlot({
+    ggplot(data = pcaDf, aes(x = PC1, y = PC2, color = as.factor(groups))) + 
+      geom_polygon(data = conf.rgn, aes(x = PC1, y = PC2, fill = as.factor(groups)), 
+                   alpha = 0.05, show.legend = FALSE) +
+      geom_point(size = 1, alpha = 0.1) + 
+      labs(color = "Forest Type") +
+      xlab("PC1 (Total Rainfall, 40.21%)") +
+      ylab("PC2 (Max Temp (ºC), 25.02%)") +
+      theme_classic() +
+      geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.2) +
+      geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.2) +
+      guides(color = guide_legend(override.aes = list(alpha = 1, size = 3))) +
+      scale_color_manual(values = species_colors)
+  })
+}
+
+# ---- Launch App ----
+shinyApp(ui, server)
+```
+
+
