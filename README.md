@@ -1,5 +1,6 @@
 # Scotland-Reforestation
 ArcGIS StoryMap: https://storymaps.arcgis.com/stories/1f4c0464acd14f11bf28029c245ef392
+
 Youtube Dashboard: https://youtu.be/YdbBTXDcwF0
 
 The landscape of Scotland as we know it today is dramatically different from what it once was. For thousands of years prior to the 18th century, the Scottish Highlands were covered in vast, ancient woodlands; rich ecosystems dominated by oak, aspen, rowan, juniper, birch, and, most famously, Scots pine (Hobbs, 2009). However, centuries of deforestation, land use change, and booming deer populations have reduced these once extensive forests to scattered, fragmented remnants. Today, much of the Highlands is characterized by open moorland dominated by heather and grasses.
