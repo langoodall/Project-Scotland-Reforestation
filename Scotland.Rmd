@@ -27,7 +27,7 @@ library(patchwork)
 library(purrr)
 options(scipen = 999)
 options(digits = 7)
-templateRaster <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/scotlandDEM100m.tif")
+templateRaster <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/scotlandDEM100m.tif")
 gc()
 ```
 
@@ -35,15 +35,15 @@ gc()
 
 ```{r}
 # Read in 30m DEM raster and then crop and mask it to the Caledonian shapefile
-scotlandDEM <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/scotland30mDEM.tif") %>%
+scotlandDEM <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/scotland30mDEM.tif") %>%
   project("epsg:32630", res = c(100,100))
-pinewoodShp <- st_read("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Pinewood Shapefile/FGS_Eligibility_Pinewood_Zone.shp") %>%
+pinewoodShp <- st_read("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Pinewood Shapefile/FGS_Eligibility_Pinewood_Zone.shp") %>%
   st_transform(crs = crs(scotlandDEM))
 scotlandDEM <- crop(scotlandDEM, ext(pinewoodShp))
 scotlandDEM <- mask(scotlandDEM, pinewoodShp)
 
 # Read in landcover data and filter out urban areas and anything resembling a bog/fen/wetland etc.
-scotLULC <- rast('/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Land Cover/2022/HLCM_2022_EUNIS_LEVEL2.tif')
+scotLULC <- rast('/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Land Cover/2022/HLCM_2022_EUNIS_LEVEL2.tif')
 templateLULC <- pinewoodShp %>% st_transform(crs = crs(scotLULC))
 scotLULC <- crop(scotLULC, templateLULC)
 scotLULC <- mask(scotLULC, templateLULC)
@@ -64,8 +64,8 @@ aspect <- terra::classify(aspect, breaks, include.lowest = TRUE)
 labels <- c("NE", "E", "SE", "S", "SW", "W", "NW", "N")
 slope <- mask(slope, dropRast)
 aspect <- mask(aspect, dropRast)
-writeRaster(slope, "/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/slope.tif", overwrite = TRUE)
-writeRaster(aspect, "/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/aspect.tif", overwrite = TRUE)
+writeRaster(slope, "/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/slope.tif", overwrite = TRUE)
+writeRaster(aspect, "/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/aspect.tif", overwrite = TRUE)
 
 gc()
 ```
@@ -187,7 +187,7 @@ gc()
 
 ```{r}
 #----PINE LOCATIONS----#
-pineData <- st_read("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Scots Pine Inventory/Caledonian_Pinewood_Inventory.shp") %>%
+pineData <- st_read("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Scots Pine Inventory/Caledonian_Pinewood_Inventory.shp") %>%
   st_transform(crs = crs(scotlandDEM))
 # Create Pinewood area, made up of natural pinewood and regeneration area and then rasterise
 pineWoodDf <- pineData %>%
@@ -195,10 +195,10 @@ pineWoodDf <- pineData %>%
 pineRast <- terra::rasterize(pineWoodDf[3], scotlandDEM, field = "FEATDESC")
 pineRast <- project(pineRast, scotlandDEM)
 pineRast <- mask(pineRast, dropRast)
-writeRaster(pineRast, "/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/pinewoodRaster.tif", overwrite = TRUE)
+writeRaster(pineRast, "/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/pinewoodRaster.tif", overwrite = TRUE)
 
 #----OAK LOCATIONS----#
-oakShp <- st_read("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Native_Woodland_Survey_of_Scotland/Native_Woodland_Survey_of_Scotland.shp") %>%
+oakShp <- st_read("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Native_Woodland_Survey_of_Scotland/Native_Woodland_Survey_of_Scotland.shp") %>%
   st_transform(crs = crs(scotlandDEM)) %>%
   filter(grepl("oak", DOM_HABITA))
 oakRast <- rasterize(oakShp, scotlandDEM, field = "DOM_HABITA")
@@ -206,7 +206,7 @@ oakRast <- mask(oakRast, scotlandDEM)
 oakRast <- mask(oakRast, dropRast)
 
 #----BIRCH LOCATIONS----#
-birchShp <- st_read("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Native_Woodland_Survey_of_Scotland/Native_Woodland_Survey_of_Scotland.shp") %>%
+birchShp <- st_read("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Native_Woodland_Survey_of_Scotland/Native_Woodland_Survey_of_Scotland.shp") %>%
   st_transform(crs = crs(scotlandDEM)) %>%
   filter(grepl("birch", DOM_HABITA),
          MATURITY == "Mature" | MATURITY == "Regenerating")
@@ -220,13 +220,13 @@ gc()
 # Scenario Creation
 
 ```{r}
-scotALC <- st_read("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Forest ALC/lcf250k_dleas.shp")
+scotALC <- st_read("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Forest ALC/lcf250k_dleas.shp")
 scotALC <- st_transform(scotALC, crs = "EPSG:32630")
 scotALC <- st_crop(scotALC, pinewoodShp)
 scotALC <- scotALC %>% st_intersection(pinewoodShp)
 scotALCRast <- rasterize(scotALC, templateRaster, field = "LAND_CLASS")
 
-scotNP <- st_read("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Scotland NP/National_Parks_-_Scotland.shp")
+scotNP <- st_read("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Scotland NP/National_Parks_-_Scotland.shp")
 scotNP <- st_transform(scotNP, crs = crs(scotALCRast))
 mask <- rasterize(scotNP, templateRaster, field = "name")
 
@@ -251,7 +251,89 @@ restrictiveScenario4 <- ifel(scotALCRast$LAND_CLASS %in% c("Land unsuitable for 
 restrictiveScenario1[is.na(dropRast)] <- 1
 
 gc()
+
+plot(scotALCRast)
+
+x <- scotALCRast %>% as.data.frame(xy = TRUE)
+
+
+x$LAND_CLASS <- factor(x$LAND_CLASS, levels = c(
+  "Built up area",
+  "Water",
+  "Land unsuitable for trees",
+  "Very limited flexibility for trees",
+  "Limited flexibility for trees",
+  "Moderate flexibility for trees",
+  "Good flexibility for trees",
+  "Very good flexibility for trees",
+  "Excellent flexibility for trees"
+))
+
+ggplot(x) +
+  geom_raster(aes(x = x, y = y, fill = LAND_CLASS)) +
+  scale_fill_manual(values = c(
+    "Built up area" = "#555555",        
+    "Water" = "#4575b4",                   
+    "Land unsuitable for trees" = "#d9b382",
+    "Very limited flexibility for trees" = "#c7e9c0", 
+    "Limited flexibility for trees" = "#a1d99b",
+    "Moderate flexibility for trees" = "#74c476",
+    "Good flexibility for trees" = "#31a354",   
+    "Very good flexibility for trees" = "#006d2c",
+    "Excellent flexibility for trees" = "#00441b" 
+  ),
+  name = "Planting Flexibility") +
+  theme_minimal() +
+  geom_sf(data = pinewoodShp, col = "black", fill = NA) +
+  xlab("Longitude") +
+  ylab("Latitude")
+
+ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Planting_Flexibility.png',
+       dpi = 300,
+       height = 5,
+       width = 8)
+
+ggplot(finishedDf) +
+  geom_raster(aes(x = x, y = y, fill = Predicted_Class)) +
+  scale_fill_manual(values = c("Oak" = "#b32417", "Birch" = "#008bb3", "Scots pine" = "#994db3")) +
+  facet_grid(Name ~ Model) +
+  theme_classic() +
+  labs(title = "Raster Plots", fill = "Value", x = "Longitude", y = "Latitude") +
+  geom_sf(data = pinewoodShp, col = "black", fill = NA) +
+  theme(panel.spacing = unit(0.2, "lines")) +
+  guides(fill = guide_legend(title = "Forest Community Type"))
 ```
+
+```{r}
+aspect <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/aspect.tif")
+slope <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/slope.tif")
+continentalRast <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/continentalRaster.tif")
+maxTempRast <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/tempMaxRaster.tif")
+minTempRast <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/tempMinRaster.tif")
+rainfallRast <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/rainfallRaster.tif")
+sunRast <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/sunRaster.tif")
+soilMoistureRast <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/soilMoistureRast.tif")
+scotlandDEM <- rast("/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Rasters/scotlandDEM100m.tif")
+
+df <- aspect %>% as.data.frame(xy = TRUE)
+
+ggplot(data = df) +
+  geom_raster(aes(x = x, y = y, fill = aspect)) +
+  geom_sf(data = pinewoodShp, col = "black", fill = NA) +
+  scale_fill_viridis_d() +
+  theme_classic()
+
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Aspect.png',
+#        dpi = 300,
+#        height = 5,
+#        width = 8,
+#        plot = last_plot())
+
+
+```
+
+
+
 
 ```{r}
 # Scenario 1
@@ -297,20 +379,6 @@ restrictiveScenario3Df$Aspect[restrictiveScenario3Df$Aspect == 9] <- 1
 restrictiveScenario4Df$Aspect <- as.numeric(restrictiveScenario4Df$Aspect)
 restrictiveScenario4Df$Aspect[restrictiveScenario4Df$Aspect == 9] <- 1
 ```
-
-
-```{r}
-aspect <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/aspect.tif")
-slope <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/slope.tif")
-continentalRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/continentalRaster.tif")
-maxTempRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/tempMaxRaster.tif")
-minTempRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/tempMinRaster.tif")
-rainfallRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/rainfallRaster.tif")
-sunRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/sunRaster.tif")
-soilMoistureRast <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/soilMoistureRast.tif")
-scotlandDEM <- rast("/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Rasters/scotlandDEM100m.tif")
-```
-
 
 
 
@@ -366,7 +434,7 @@ lm.1 <- lm(dummyTreeType ~ Aspect + Slope + Continentality_Index + Max_Temp + To
 car::vif(lm.1)
 finalTable <- select(finalTable, -Min_Temp) %>% drop_na()
 
-write_csv(finalTable, '/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Restrictive Scenario Dataframes/finalTable.csv')
+write_csv(finalTable, '/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Restrictive Scenario Dataframes/finalTable.csv')
 
 scaleScenario1 <- as.data.frame(scale(restrictiveScenario1Df[, -c(1,2,7)]))
 scaleScenario2 <- as.data.frame(scale(restrictiveScenario2Df[, -c(1,2,7)]))
@@ -406,13 +474,23 @@ conf.rgn  <- do.call(rbind, lapply(unique(pcaDf$groups), function(t)
 ggplot(data = pcaDf, aes(x = PC1, y = PC2, color = as.factor(groups))) + 
   geom_polygon(data = conf.rgn, aes(fill = as.factor(groups)), alpha = 0.05, show.legend = FALSE) +
   geom_point(size = 1, alpha = 0.1) + 
-  labs(title = "Principal Component Analysis of Scotland Tree Types: PC1 and PC2", color = "Forest Type") +
+  labs(color = "Forest Type") +
   xlab("PC1 (Total Rainfall, 40.21%)") +
   ylab("PC2 (Max Temp (ºC), 25.02%)") +
   theme_classic() +
   geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.2) +
   geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.2) +
-  guides(color = guide_legend(override.aes = list(alpha = 1, size = 3)))
+  guides(color = guide_legend(override.aes = list(alpha = 1, size = 3))) +
+  scale_color_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"))
+
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Scotland_PCA.png',
+#        dpi = 300,
+#        height = 5,
+#        width = 8)
+
+levels(as.factor(pcaDf$groups))
 
 
 # Looking at the PCA values
@@ -435,7 +513,7 @@ gc()
 # AUC-ROC Curves
 
 ```{r}
-filepath <- '/Users/louisgoodall/Desktop/Portfolio Projects/Data/Scotland/Outputs'
+filepath <- '/Users/louisgoodall/Desktop/Portfolio_Projects/Data/Scotland/Outputs'
 folders <- c("Multilayer Perceptron", "Naive Bayes", "Random Forest", "Support Vector Machine", "XGBoost")
 models <- c("MLP", "NB", "RF", "SVM", "XGB")
 aucrocDf <- list()  # Initialize the list
@@ -448,7 +526,7 @@ for (i in 1:length(folders)) {
   data <- data.table::fread(filePath)
   data <- data %>% filter(Thresholds < Inf)
   data <- data %>%
-    mutate(Class = case_when(
+    mutate(`Forest Type` = case_when(
       Class == 0 ~ "Birch",
       Class == 1 ~ "Oak",
       TRUE ~ "Scots pine"
@@ -458,21 +536,37 @@ for (i in 1:length(folders)) {
 }
 aucrocDf <- do.call(rbind, aucrocDf)
 
-ggplot(aucrocDf %>% filter(Model != "XGB"), aes(x = FPR, y = TPR, col = Class)) +
+ggplot(aucrocDf %>% filter(Model != "XGB"), aes(x = FPR, y = TPR, col = `Forest Type`)) +
   geom_line(size = 1) +
   geom_abline(slope = 1, intercept = 0) +
   theme_classic() +
   xlab("False Positive Rate") +
   ylab("True Positive Rate") +
-  facet_wrap(~ Model)
+  facet_wrap(~ Model) +
+  scale_color_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"))
 
-ggplot(aucrocDf %>% filter(Model == "XGB"), aes(x = FPR, y = TPR, col = Class)) +
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Scotland_AUCROC_4Models.png',
+#        dpi = 300,
+#        height = 5,
+#        width = 7)
+
+ggplot(aucrocDf %>% filter(Model == "XGB"), aes(x = FPR, y = TPR, col = `Forest Type`)) +
   geom_line(size = 1) +
   geom_abline(slope = 1, intercept = 0) +
   theme_classic() +
   xlab("False Positive Rate") +
   ylab("True Positive Rate") +
-  facet_wrap(~ Model)
+  facet_wrap(~ Model) +
+  scale_color_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"))
+
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Scotland_AUCROC_XGB.png',
+#        dpi = 300,
+#        height = 5,
+#        width = 7)
 
 # Overall AUCROC
 aucrocAllDf <- list()
@@ -490,6 +584,26 @@ for (i in 1:length(folders)) {
   aucrocAllDf[[folders[i]]] <- data
 }
 aucrocAllDf <- do.call(rbind, aucrocAllDf)
+
+
+
+ggplot(aucrocDf %>% filter(Model == "XGB"), aes(x = FPR, y = TPR, col = `Forest Type`)) +
+  geom_line(size = 1) +
+  geom_abline(slope = 1, intercept = 0) +
+  theme_classic() +
+  xlab("False Positive Rate") +
+  ylab("True Positive Rate") +
+  facet_wrap(~ Model) +
+  scale_color_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"))
+
+
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/XGB_AUROC.png',
+#        dpi = 300,
+#        height = 5,
+#        width = 8,
+#        plot = last_plot())
 ```
 
 # Mega Dataframe, I am unstoppable!
@@ -552,18 +666,53 @@ finishedDf %>%
   ggplot(aes(x = Model, y = prop, fill = Predicted_Class)) +
   geom_bar(stat = "identity") +
   theme_classic() +
-  facet_wrap(~ Scenario)
-
-gc()
+  facet_wrap(~ Scenario) +
+  scale_fill_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"))
 
 finishedDf %>%
   group_by(Predicted_Class, Scenario, Model) %>%
   summarise(n = n(), .groups = 'drop') %>%
   group_by(Scenario, Model) %>%
+  mutate(total = sum(n),
+         prop = n / total) %>%
+  ungroup() %>%
+  mutate(Scenario = factor(Scenario, levels = c("1", "2", "3", "4"),
+                           labels = c("Most", "High", "Moderate", "Least"))) %>%
+  ggplot(aes(x = Scenario, y = prop, fill = Predicted_Class)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  facet_wrap(~ Model) +
+  scale_fill_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"),
+                    name = "Forest Community Type") +
+  ylab("Proportion") +
+  xlab("Scenario") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Scotland_Proportion.png',
+#        dpi = 300,
+#        height = 5,
+#        width = 8)
+
+finishedDf %>%
+  group_by(Predicted_Class, Scenario, Model) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  group_by(Scenario, Predicted_Class) %>%
   mutate(total = sum(n),      # Total within each Scenario and Model combination
-         prop = round(n / total, 3)) %>%
-  arrange(Scenario, Model, Predicted_Class) %>%
-  filter(Predicted_Class == "Scots pine" & Model == "NB")
+         prop = n / total) %>% # Proportion within each group
+  ggplot(aes(x = Scenario, y = n, fill = Predicted_Class)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  facet_wrap(~ Model) +
+  scale_fill_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"))
+
+gc()
 ```
 
 # Create rasters from the data frames
@@ -597,13 +746,18 @@ finishedDf$Name <- factor(finishedDf$Name,
 
 ggplot(finishedDf) +
   geom_raster(aes(x = x, y = y, fill = Predicted_Class)) +
-  scale_fill_manual(values = c("Birch" = "#42cafe", "Scots pine" = "#d099ff", "Oak" = "#ff5343")) +
+  scale_fill_manual(values = c("Oak" = "#b32417", "Birch" = "#008bb3", "Scots pine" = "#994db3")) +
   facet_grid(Name ~ Model) +
   theme_classic() +
   labs(title = "Raster Plots", fill = "Value", x = "Longitude", y = "Latitude") +
   geom_sf(data = pinewoodShp, col = "black", fill = NA) +
   theme(panel.spacing = unit(0.2, "lines")) +
   guides(fill = guide_legend(title = "Forest Community Type"))
+
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Facet_Map.png',
+#        dpi = 300,
+#        height = 20,
+#        width = 25)
 
 ```
 
@@ -659,24 +813,6 @@ probabilityDf <- probabilityDf %>%
       Scenario == 3 ~ "Moderate",
       Scenario == 4 ~ "Least"))
 
-probabilityDf %>%
-  filter(Scenario == "Least") %>%
-  mutate(Birch_High = (Birch >= 0.8),
-         Oak_High = (Oak >= 0.8),
-         Pine_High = (`Scots pine` >= 0.8)) %>%
-  group_by(x, y, Forest_Type, Model) %>%
-  summarise(Birch_Count = sum(Birch_High),
-            Oak_Count = sum(Oak_High),
-            Pine_Count = sum(Pine_High), .groups = "drop") %>%
-  mutate(Max_High = pmax(Birch_Count, Oak_Count, Pine_Count),
-         Forest_Type = case_when(Birch_Count == Max_High ~ "Birch",
-                                 Oak_Count == Max_High ~ "Oak",
-                                 Pine_Count == Max_High ~ "Pine",
-                                 TRUE ~ Forest_Type),
-         Category = if_else(Max_High > 3, paste0(Forest_Type, Max_High), NA_character_)) %>%
-  drop_na(Category)
-
-
 
 probabilityClassDf <- probabilityDf %>%
   filter(Scenario == "Least") %>%
@@ -725,19 +861,25 @@ custom_colors <- c(
   "Oak5" = "#b32417"
 )
 
+probabilityClassDf %>% filter(maxHigh > 2)
 
-ggplot(probabilityClassDf) +
+ggplot(probabilityClassDf%>% filter(maxHigh > 2)) +
   geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray99", 0.75)) +
   geom_raster(aes(x = x, y = y, fill = Category)) +
   geom_sf(data = pinewoodShp, col = "black", fill = NA) +
-  scale_fill_manual(values = custom_colors, name = "Forest Cover Type") +
+  scale_fill_manual(values = custom_colors, name = "Forest Community Type",
+                    labels = c("B3", "B4", "B5",
+                               "O3", "O4", "O5",
+                               "SP3", "SP4", "SP5")) +
+  xlab("Longitude") +
+  ylab("Latitude") +
   theme_light()
 
 ggplot(highProbabilityDf) +
   geom_sf(data = Scotland_cropped, col = "black", fill = alpha("gray99", 0.75)) +
   geom_raster(aes(x = x, y = y, fill = Category)) +
   geom_sf(data = pinewoodShp, col = "black", fill = NA) +
-  scale_fill_manual(values = custom_colors, name = "Forest Cover Type",
+  scale_fill_manual(values = custom_colors, name = "Forest Community Type",
                     labels = c("Birch5" = "Birch",
                                "Oak5" = "Oak",
                                "Scots pine5" = "Scots pine")) +
@@ -759,7 +901,7 @@ highProbabilityDf[,-c(4:8)] %>%
   
 finishedDf[,-c(3,5)] %>%
   filter(Name == "Least") %>%
-  inner_join(restrictiveScenario4Df, by = c("x", "y")) %>%
+  inner_join(restrictiveScenario4Df[,-12], by = c("x", "y")) %>%
   pivot_longer(cols = Aspect:Elevation, values_to = "value", names_to = "Variable") %>%
   ggplot(., aes(x = Predicted_Class, y = value, fill = Predicted_Class)) +
   geom_boxplot() +
@@ -774,17 +916,54 @@ summary(aov(Continentality_Index ~ forestType, data = aovDf))
 
 (nrow(highProbabilityDf) / nrow(finishedDf %>% filter(Scenario == 4 & Model == "MLP"))) * 100
 
+aspect_labels <- c(
+  "1" = "N", 
+  "2" = "NE", 
+  "3" = "E", 
+  "4" = "SE", 
+  "5" = "S", 
+  "6" = "SW", 
+  "7" = "W", 
+  "8" = "NW"
+)
+facet_labels = c(
+  "Aspect" = "Aspect",
+  "Continentality_Index" = "Continentality Index",
+  "Elevation" = "Elevation",
+  "Max_Temp" = "Max Temp",
+  "Slope" = "Slope",
+  "Soil_Moisture" = "Soil Moisture",
+  "Total_Rainfall" = "Total Rainfall",
+  "Total_Sunlight_Hours" = "Total Sunlight Hours"
+)
+
 highProbabilityDf[,-c(4:8)] %>%
   inner_join(restrictiveScenario4Df, by = c("x", "y")) %>%
   pivot_longer(cols = Aspect:Elevation, values_to = "value", names_to = "Variable") %>%
+  filter(Variable != "Min_Temp") %>%   # <-- Filtering out MinTemp here
   ggplot(aes(fill = forestType)) +
   geom_boxplot(data = . %>% filter(Variable != "Aspect"),
                aes(x = forestType, y = as.numeric(value))) +
   geom_bar(data = . %>% filter(Variable == "Aspect"),
            aes(x = as.factor(value), group = forestType)) +
+  scale_x_discrete(labels = aspect_labels) +  # <-- Replace numbers with compass directions
   theme_classic() +
-  facet_wrap(~ Variable, scales = "free")
+  facet_wrap(~ Variable, scales = "free", labeller = labeller(Variable = facet_labels)) +  # <-- Custom facet labels
+  scale_fill_manual(values = c("Oak" = "#b32417",
+                               "Birch" = "#008bb3",
+                               "Scots pine" = "#994db3"),
+                    name = "Forest Community Type") +
+  xlab("") +
+  ylab("")
 
+# ggsave(filename = '/Users/louisgoodall/Desktop/Journal Submissions/Scotland Reforestation/Images/Hotspot_Facet.png',
+#        dpi = 300,
+#        height = 5,
+#        width = 8)
+```
+
+
+```{r}
 # Quantile values
 # Hotspots
 highProbabilityDf[,-c(4:8)] %>%
